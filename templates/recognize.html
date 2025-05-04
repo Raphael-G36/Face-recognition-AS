@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 20px;
+            color: #4CAF50;
+            font-size: 24px;
+        }
+
+        form {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        form label {
+            font-weight: bold;
+            display: block;
+            margin: 10px 0 5px;
+        }
+
+        form input[type="text"],
+        form input[type="button"],
+        form button {
+            width: calc(100% - 20px);
+            margin: 10px auto;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        form input[type="button"],
+        form button {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+
+        form input[type="button"]:hover,
+        form button:hover {
+            background-color: #45a049;
+        }
+
+        #img {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        video {
+            width: 100%;
+            max-width: 500px;
+            margin: 10px auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            display: block;
+        }
+
+        canvas {
+            display: none;
+            margin: 10px auto;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .instructions {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Attendify</h1>
+    <form method="POST">
+        <label for="course_code">Course Title:</label>
+        <input type="text" name="course_code" id="course_code" placeholder="Enter the course title" required>
+
+        <input type="hidden" id="image" name="imageData">
+
+        <div id="img">
+            <p class="instructions">Ensure the photo is clear and well-lit.</p>
+            <video autoplay playsinline></video>
+            <canvas id="canvas" hidden></canvas>
+            <input type="button" value="Capture" id="capture">
+            <input type="button" value="Recapture" id="recapture" hidden>
+            <button type="submit" id="submit" hidden>Submit</button>
+        </div>
+    </form>
+
+    <script>
+        const videoElement = document.querySelector('video');
+        const canvas_img = document.querySelector('canvas');
+        const canvas = document.getElementById('canvas');
+        const captureButton = document.getElementById('capture');
+        const recaptureButton = document.getElementById('recapture');
+        const submitButton = document.getElementById('submit');
+        const imageInput = document.getElementById('image');
+        let videoStream = null;
+
+        function startVideoStream() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then((stream) => {
+                    videoStream = stream;
+                    videoElement.srcObject = stream;
+                    videoElement.style.display = 'block';
+                    canvas_img.style.display = 'none';
+                    captureButton.disabled = false;
+                })
+                .catch((error) => {
+                    console.error('Error accessing the webcam:', error);
+                    alert('Could not access the webcam.');
+                });
+        }
+
+        function stopVideoStream() {
+            if (videoStream) {
+                videoStream.getTracks().forEach((track) => track.stop());
+                videoStream = null;
+            }
+        }
+
+        captureButton.addEventListener('click', () => {
+            const context = canvas.getContext('2d');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/jpeg');
+            imageInput.value = imageData;
+
+            videoElement.style.display = 'none';
+            canvas_img.style.display = 'block';
+            canvas.hidden = false;
+            captureButton.hidden = true;
+            recaptureButton.hidden = false;
+            submitButton.hidden = false;
+
+            stopVideoStream();
+        });
+
+        recaptureButton.addEventListener('click', () => {
+
+            startVideoStream();
+
+            captureButton.hidden = false;
+            recaptureButton.hidden = true;
+            submitButton.hidden = true;
+        });
+
+
+        startVideoStream();
+    </script>
+</body>
+
+</html>

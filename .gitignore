@@ -1,0 +1,8 @@
+captured_students_faces/
+
+myenv/
+
+recognition_image/
+
+*.pem
+face_recognition.db

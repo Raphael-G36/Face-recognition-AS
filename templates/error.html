@@ -1,68 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Server Error</title>
+    <title>FRAS - Error</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;500&display=swap');
+
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            color: #333;
+            font-family: 'Roboto', Arial, sans-serif;
+            background: radial-gradient(circle at 60% 40%, #0f2027 0%, #2c5364 100%);
+            color: #f4f4f4;
             margin: 0;
             padding: 0;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
-            height: 100vh;
+            justify-content: center;
+        }
+
+        .container {
+            background: rgba(44, 83, 100, 0.85);
+            border-radius: 18px;
+            padding: 36px 32px 28px 32px;
+            box-shadow: 0 6px 32px rgba(0, 0, 0, 0.18);
+            border: 1.5px solid #00e6d3;
+            max-width: 480px;
             text-align: center;
         }
+
         h1 {
-            font-size: 3rem;
-            color: #d9534f;
-            margin: 0.5em 0;
+            font-family: 'Montserrat', Arial, sans-serif;
+            font-size: 2.3rem;
+            color: #ff5252;
+            margin: 0.5em 0 0.3em 0;
+            text-shadow: 1px 1px 8px #0f2027;
         }
+
         p {
-            font-size: 1.2rem;
+            font-size: 1.15rem;
             margin: 0.5em 0;
+            color: #e0f7fa;
         }
+
         .actions {
             margin-top: 1.5em;
         }
+
         .actions a {
             text-decoration: none;
-            color: #fff;
-            background-color: #0275d8;
+            color: #0f2027;
+            background: linear-gradient(90deg, #00e6d3 0%, #00b8a9 100%);
             padding: 0.8em 1.5em;
-            border-radius: 5px;
+            border-radius: 8px;
             font-size: 1rem;
+            font-family: 'Montserrat', Arial, sans-serif;
+            font-weight: 600;
             margin: 0 0.5em;
-            transition: background-color 0.3s;
+            box-shadow: 0 2px 12px rgba(0, 230, 211, 0.15);
+            transition: background 0.3s, color 0.3s, transform 0.2s;
         }
+
         .actions a:hover {
-            background-color: #025aa5;
+            background: linear-gradient(90deg, #00b8a9 0%, #00e6d3 100%);
+            color: #fff;
+            transform: translateY(-2px) scale(1.04);
         }
-        .logo {
-            width: 120px;
-            margin-bottom: 1em;
-        }
+
         footer {
             margin-top: 2em;
-            font-size: 0.9rem;
-            color: #777;
+            font-size: 0.95rem;
+            color: #b2dfdb;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 16px 4px 18px 4px;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+            }
+
+            .actions a {
+                font-size: 0.95rem;
+                padding: 0.7em 1em;
+            }
         }
     </style>
 </head>
+
 <body>
-    <h1>Oops! Something went wrong.</h1>
-    <p> Face could not be detected. Please confirm that the picture is a face photo, and the image is well lit up</p>
-    <p>Please try retaking the photo or come back later.</p>
-    <div class="actions">
-        <a href="/">Go to Homepage</a>
+    <div class="container">
+        <h1>Oops! Something went wrong.</h1>
+        <p>Face could not be detected. Please confirm that the picture is a face photo, and the image is well lit up.
+        </p>
+        <p>Please try retaking the photo or come back later.</p>
+        <div class="actions">
+            <a href="/">Go to Homepage</a>
+        </div>
     </div>
     <footer>
-        &copy; 2025 UIBRAS. All rights reserved.
+        &copy; 2025 FRAS. All rights reserved.
     </footer>
 </body>
+
 </html>

@@ -2,13 +2,32 @@ import cv2
 import os
 import base64
 import numpy as np
+import gc
 from deepface import DeepFace
 
 from flask import Flask, request, render_template, redirect
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 
+# Configure TensorFlow to use less memory
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
+
 app = Flask(__name__)
+
+# Configure TensorFlow to limit memory growth (must be done after import)
+try:
+    import tensorflow as tf
+    # Limit GPU memory growth (if GPU available)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError as e:
+            print(f"GPU memory config error: {e}")
+except Exception as e:
+    print(f"TensorFlow config warning: {e}")
 
 # Database configuration: prefer DATABASE_URL, fallback to local sqlite
 # Railway provides DATABASE_URL with postgres://, but SQLAlchemy needs postgresql://
@@ -162,17 +181,26 @@ def mark_attendance():
         recognized_mat_number = None
         if image_b64:
             try:
+                # Force garbage collection before heavy operation
+                gc.collect()
+                
                 # Use lighter settings to reduce memory usage
                 # enforce_detection=False allows processing even if face detection is uncertain
                 # detector_backend='opencv' is faster and uses less memory than default
+                # distance_metric='cosine' is lighter than 'euclidean'
                 result = DeepFace.find(
                     img_path=captured_image_path, 
                     db_path=captured_faces_dir,
                     enforce_detection=False,  # Don't fail if face detection is uncertain
                     detector_backend='opencv',  # Use OpenCV (lighter than default)
-                    model_name='VGG-Face',  # Specify model explicitly
+                    model_name='Facenet',  # Facenet is lighter than VGG-Face
+                    distance_metric='cosine',  # Cosine is lighter than euclidean
                     silent=True  # Reduce logging
                 )
+                
+                # Clean up memory immediately after DeepFace operation
+                gc.collect()
+                
                 if isinstance(result, list) and len(result) > 0:
                     result_df = result[0]
                     if not result_df.empty:
@@ -188,10 +216,27 @@ def mark_attendance():
                             # If no distance column, use first result (DeepFace may return different format)
                             recognized_file = result_df.iloc[0]['identity']
                             recognized_mat_number = os.path.basename(recognized_file).split('.')[0]
+                
+                # Clean up result to free memory
+                del result
+                gc.collect()
+                
+                # Clear TensorFlow session to free memory
+                try:
+                    import tensorflow as tf
+                    tf.keras.backend.clear_session()
+                except:
+                    pass
+                gc.collect()
+            except MemoryError as e:
+                print(f"Memory error during face recognition: {e}")
+                gc.collect()
+                return render_template('error.html', message="System is busy. Please try again in a moment."), 503
             except Exception as e:
                 print(f"Face recognition error: {e}")
                 import traceback
                 traceback.print_exc()
+                gc.collect()
                 return render_template('error.html', message="Face recognition failed. Please try again."), 500
 
         if not recognized_mat_number:

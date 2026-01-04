@@ -39,14 +39,6 @@ recognition_dir = 'recognition_image'
 os.makedirs(captured_faces_dir, exist_ok=True)
 os.makedirs(recognition_dir, exist_ok = True)
 
-# Initialize database tables on startup
-with app.app_context():
-    try:
-        db.create_all()
-        print("Database tables created/verified successfully")
-    except Exception as e:
-        print(f"Warning: Could not create database tables: {e}")
-
 # Loads up HaarCasacdeClassifer objects for face recognition 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml') 
 
@@ -57,9 +49,32 @@ class Student(db.Model):
     mat_number = db.Column(db.String(255), nullable=False, unique=True)
     image_path = db.Column(db.String(1024), nullable=False)
 
+# Initialize database tables on startup (after models are defined)
+with app.app_context():
+    try:
+        db.create_all()
+        print("Database tables created/verified successfully")
+    except Exception as e:
+        print(f"ERROR: Could not create database tables: {e}")
+        import traceback
+        traceback.print_exc()
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/init-db')
+def init_db():
+    """Manually initialize database tables (useful for troubleshooting)"""
+    try:
+        with app.app_context():
+            db.create_all()
+            return "Database tables created/verified successfully!", 200
+    except Exception as e:
+        import traceback
+        error_msg = f"Error creating tables: {e}\n{traceback.format_exc()}"
+        print(error_msg)
+        return error_msg, 500
 
 
 @app.errorhandler(500)

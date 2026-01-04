@@ -96,7 +96,36 @@ def open_camera():
         
         student_image_path = os.path.join(captured_faces_dir, f"{mat_no}.jpg")
         
-        cv2.imwrite(student_image_path, student_img)
+        # Validate that a face is detected in the image before saving
+        try:
+            # Use OpenCV to detect face before saving
+            gray = cv2.cvtColor(student_img, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+            
+            if len(faces) == 0:
+                return render_template('error.html', message="No face detected in the image. Please ensure your face is clearly visible and try again."), 400
+            
+            # Save image temporarily for DeepFace validation
+            temp_path = os.path.join(captured_faces_dir, f"temp_{mat_no}.jpg")
+            cv2.imwrite(temp_path, student_img)
+            
+            # Also validate with DeepFace (lightweight check)
+            try:
+                DeepFace.extract_faces(img_path=temp_path, enforce_detection=True, detector_backend='opencv')
+                # If successful, rename to final path
+                if os.path.exists(temp_path):
+                    if os.path.exists(student_image_path):
+                        os.remove(student_image_path)
+                    os.rename(temp_path, student_image_path)
+            except Exception as e:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                print(f"DeepFace validation failed: {e}")
+                return render_template('error.html', message="Face could not be properly detected. Please ensure your face is clearly visible and try again."), 400
+        except Exception as e:
+            print(f"Face validation error: {e}")
+            return render_template('error.html', message="Error processing image. Please try again."), 500
 
         # Save the captured face image path as well as other details, to the database
         try:
@@ -106,11 +135,10 @@ def open_camera():
         except IntegrityError as e:
             db.session.rollback()
             print(f"Integrity error: {e}")
-            # Student with this mat_number already exists
+            return render_template('error.html', message="Student with this matriculation number already exists."), 400
         except Exception as e:
             db.session.rollback()
             print(f"Database error: {e}")
-            # Return error page or redirect with error message
             return render_template('error.html', message="Failed to save student. Please try again."), 500
         return redirect('/')
     return render_template('register.html')
@@ -134,14 +162,37 @@ def mark_attendance():
         recognized_mat_number = None
         if image_b64:
             try:
-                result = DeepFace.find(img_path=captured_image_path, db_path=captured_faces_dir)
+                # Use lighter settings to reduce memory usage
+                # enforce_detection=False allows processing even if face detection is uncertain
+                # detector_backend='opencv' is faster and uses less memory than default
+                result = DeepFace.find(
+                    img_path=captured_image_path, 
+                    db_path=captured_faces_dir,
+                    enforce_detection=False,  # Don't fail if face detection is uncertain
+                    detector_backend='opencv',  # Use OpenCV (lighter than default)
+                    model_name='VGG-Face',  # Specify model explicitly
+                    silent=True  # Reduce logging
+                )
                 if isinstance(result, list) and len(result) > 0:
                     result_df = result[0]
                     if not result_df.empty:
-                        recognized_file = result_df.iloc[0]['identity']
-                        recognized_mat_number = os.path.basename(recognized_file).split('.')[0]
-            except Exception:
-                return render_template('error.html'), 500
+                        # Check if similarity is high enough (distance threshold)
+                        # Lower distance = higher similarity
+                        # Typical threshold: distance < 0.4 means good match
+                        distance_threshold = 0.4  # Adjust as needed (lower = stricter)
+                        if 'distance' in result_df.columns:
+                            if result_df.iloc[0]['distance'] < distance_threshold:
+                                recognized_file = result_df.iloc[0]['identity']
+                                recognized_mat_number = os.path.basename(recognized_file).split('.')[0]
+                        else:
+                            # If no distance column, use first result (DeepFace may return different format)
+                            recognized_file = result_df.iloc[0]['identity']
+                            recognized_mat_number = os.path.basename(recognized_file).split('.')[0]
+            except Exception as e:
+                print(f"Face recognition error: {e}")
+                import traceback
+                traceback.print_exc()
+                return render_template('error.html', message="Face recognition failed. Please try again."), 500
 
         if not recognized_mat_number:
             return render_template('error.html'), 404

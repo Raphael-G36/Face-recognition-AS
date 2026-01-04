@@ -12,9 +12,15 @@ app = Flask(__name__)
 
 # Database configuration: prefer DATABASE_URL, fallback to local sqlite
 # Railway provides DATABASE_URL with postgres://, but SQLAlchemy needs postgresql://
+# Using pg8000 (pure Python) instead of psycopg2 to avoid segmentation faults in Nix environment
 database_url = os.environ.get('DATABASE_URL') or 'sqlite:///face_recognition.db'
 if database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    # Convert Railway's postgres:// to postgresql+pg8000://
+    database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
+elif database_url.startswith('postgresql://'):
+    # Convert postgresql:// to postgresql+pg8000:// if not already using a driver
+    if '+pg8000' not in database_url and '+' not in database_url:
+        database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Configure connection pool to prevent segmentation faults

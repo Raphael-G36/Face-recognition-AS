@@ -40,8 +40,6 @@ instance/
 face_recognition.db
 
 # Uploaded / generated images
-captured_students_faces/
-recognition_image/
 
 # Certificates and private keys
 cert.pem
@@ -54,6 +52,7 @@ logs/
 # Environment variables
 .env
 .env.*
+.history/
 
 # IDEs and editors
 .vscode/

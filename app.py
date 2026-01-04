@@ -17,6 +17,17 @@ if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Configure connection pool to prevent segmentation faults
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,  # Verify connections before using
+    'pool_recycle': 300,    # Recycle connections after 5 minutes
+    'pool_size': 5,         # Connection pool size
+    'max_overflow': 10,     # Maximum overflow connections
+    'connect_args': {
+        'connect_timeout': 10,
+        'application_name': 'uibras_app'
+    }
+}
 db = SQLAlchemy(app)
 
 
@@ -24,6 +35,14 @@ captured_faces_dir = 'captured_students_faces'
 recognition_dir = 'recognition_image'
 os.makedirs(captured_faces_dir, exist_ok=True)
 os.makedirs(recognition_dir, exist_ok = True)
+
+# Initialize database tables on startup
+with app.app_context():
+    try:
+        db.create_all()
+        print("Database tables created/verified successfully")
+    except Exception as e:
+        print(f"Warning: Could not create database tables: {e}")
 
 # Loads up HaarCasacdeClassifer objects for face recognition 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml') 
@@ -66,10 +85,15 @@ def open_camera():
             student = Student(name=name, mat_number=mat_no, image_path=student_image_path)
             db.session.add(student)
             db.session.commit()
-        except IntegrityError:
+        except IntegrityError as e:
             db.session.rollback()
-        except Exception:
+            print(f"Integrity error: {e}")
+            # Student with this mat_number already exists
+        except Exception as e:
             db.session.rollback()
+            print(f"Database error: {e}")
+            # Return error page or redirect with error message
+            return render_template('error.html', message="Failed to save student. Please try again."), 500
         return redirect('/')
     return render_template('register.html')
 

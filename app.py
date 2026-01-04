@@ -1,13 +1,24 @@
 import cv2
-import sqlite3
 import os
 import base64
 import numpy as np
 from deepface import DeepFace
 
-
 from flask import Flask, request, render_template, redirect
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import IntegrityError
+
 app = Flask(__name__)
+
+# Database configuration: prefer DATABASE_URL, fallback to local sqlite
+# Railway provides DATABASE_URL with postgres://, but SQLAlchemy needs postgresql://
+database_url = os.environ.get('DATABASE_URL') or 'sqlite:///face_recognition.db'
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
 
 captured_faces_dir = 'captured_students_faces'
 recognition_dir = 'recognition_image'
@@ -16,6 +27,13 @@ os.makedirs(recognition_dir, exist_ok = True)
 
 # Loads up HaarCasacdeClassifer objects for face recognition 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml') 
+
+
+class Student(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    mat_number = db.Column(db.String(255), nullable=False, unique=True)
+    image_path = db.Column(db.String(1024), nullable=False)
 
 @app.route('/')
 def index():
@@ -44,14 +62,14 @@ def open_camera():
         cv2.imwrite(student_image_path, student_img)
 
         # Save the captured face image path as well as other details, to the database
-        db_connection = sqlite3.connect('face_recognition.db')
-        cursor = db_connection.cursor()
-        cursor.execute('''
-                        INSERT INTO students( name, mat_number, image_path)
-                        Values(?,?,?)
-                        ''',(name, mat_no, student_image_path))
-        db_connection.commit()
-        db_connection.close()
+        try:
+            student = Student(name=name, mat_number=mat_no, image_path=student_image_path)
+            db.session.add(student)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+        except Exception:
+            db.session.rollback()
         return redirect('/')
     return render_template('register.html')
 
@@ -71,43 +89,32 @@ def mark_attendance():
         
         cv2.imwrite(captured_image_path, recognition_img)
         
+        recognized_mat_number = None
         if image_b64:
             try:
                 result = DeepFace.find(img_path=captured_image_path, db_path=captured_faces_dir)
-                if isinstance(result, list)and len(result)>0:
+                if isinstance(result, list) and len(result) > 0:
                     result_df = result[0]
                     if not result_df.empty:
                         recognized_file = result_df.iloc[0]['identity']
                         recognized_mat_number = os.path.basename(recognized_file).split('.')[0]
-            
-            except Exception as e:
+            except Exception:
                 return render_template('error.html'), 500
-            
-        db_connection = sqlite3.connect('face_recognition.db')
-        cursor = db_connection.cursor()
-        cursor.execute('''
-                       SELECT name FROM students WHERE mat_number = ?
-                       ''', (recognized_mat_number,))
-        result = cursor.fetchone()
-        db_connection.commit()
-        db_connection.close()
-        
-        return render_template('cam.html', name = result[0], mat_number = recognized_mat_number, course = course )
+
+        if not recognized_mat_number:
+            return render_template('error.html'), 404
+
+        student = Student.query.filter_by(mat_number=recognized_mat_number).first()
+        if not student:
+            return render_template('error.html'), 404
+
+        return render_template('cam.html', name=student.name, mat_number=recognized_mat_number, course=course)
     return render_template('recognize.html')
 
 
 if __name__ == '__main__':
-    db_connection = sqlite3.connect('face_recognition.db')
-    cursor = db_connection.cursor()
-    cursor.execute(''' 
-                    CREATE TABLE IF NOT EXISTS students(
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT NOT NULL,
-                        mat_number TEXT NOT NULL,
-                        image_path TEXT NOT NULL)''')
-    
-    db_connection.commit()
-    db_connection.close()
+    # Ensure tables exist (works for SQLite and most SQL DBs)
+    db.create_all()
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('1', 'true', 'yes')
     app.run(host='0.0.0.0', port=port, debug=debug)

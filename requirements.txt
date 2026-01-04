@@ -7,6 +7,7 @@ Pillow>=5.2.0
 opencv-python-headless>=4.5.5.64  # Headless version for Railway (no GUI dependencies)
 tensorflow>=1.9.0
 keras>=2.2.0
+tf-keras>=2.0.0
 Flask>=1.1.2
 flask_cors>=4.0.1
 mtcnn>=0.1.0

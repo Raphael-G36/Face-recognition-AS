@@ -4,7 +4,15 @@ nixPkgs = ["python39", "gcc"]
 [phases.install]
 cmds = [
   "python -m venv --copies /opt/venv",
-  ". /opt/venv/bin/activate && pip install -r requirements.txt"
+  ". /opt/venv/bin/activate && pip install --upgrade pip setuptools wheel",
+  ". /opt/venv/bin/activate && pip install --no-cache-dir opencv-python-headless>=4.5.5.64",
+  ". /opt/venv/bin/activate && echo '=== Installing all packages ===' && pip install -r requirements.txt --no-cache-dir",
+  ". /opt/venv/bin/activate && echo '=== Checking opencv packages before cleanup ===' && pip list | grep -i opencv || echo 'No opencv packages found'",
+  ". /opt/venv/bin/activate && echo '=== Removing opencv-python packages ===' && pip uninstall -y opencv-python opencv-contrib-python 2>&1 || true",
+  ". /opt/venv/bin/activate && echo '=== Removing cv2 directories ===' && rm -rf /opt/venv/lib/python*/site-packages/cv2* 2>/dev/null || true",
+  ". /opt/venv/bin/activate && echo '=== Reinstalling opencv-python-headless ===' && pip install --force-reinstall --no-cache-dir opencv-python-headless>=4.5.5.64",
+  ". /opt/venv/bin/activate && echo '=== Verifying opencv installation ===' && pip list | grep -i opencv",
+  ". /opt/venv/bin/activate && python -c 'import cv2; print(\"SUCCESS: OpenCV\", cv2.__version__, \"imported successfully\")'"
 ]
 
 [start]

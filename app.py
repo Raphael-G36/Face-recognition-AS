@@ -24,15 +24,12 @@ elif database_url.startswith('postgresql://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Configure connection pool to prevent segmentation faults
+# pg8000 has different connection arguments than psycopg2
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,  # Verify connections before using
     'pool_recycle': 300,    # Recycle connections after 5 minutes
     'pool_size': 5,         # Connection pool size
-    'max_overflow': 10,     # Maximum overflow connections
-    'connect_args': {
-        'connect_timeout': 10,
-        'application_name': 'uibras_app'
-    }
+    'max_overflow': 10      # Maximum overflow connections
 }
 db = SQLAlchemy(app)
 

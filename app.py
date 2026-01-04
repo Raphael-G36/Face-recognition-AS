@@ -136,6 +136,11 @@ def open_camera():
                     if os.path.exists(student_image_path):
                         os.remove(student_image_path)
                     os.rename(temp_path, student_image_path)
+                    # Verify the file was saved correctly
+                    if not os.path.exists(student_image_path) or os.path.getsize(student_image_path) == 0:
+                        print(f"Warning: Image file not saved correctly: {student_image_path}")
+                        return render_template('error.html', message="Failed to save image. Please try again."), 500
+                    print(f"Successfully saved student image: {student_image_path} ({os.path.getsize(student_image_path)} bytes)")
             except Exception as e:
                 # Clean up temp file
                 if os.path.exists(temp_path):
@@ -181,6 +186,46 @@ def mark_attendance():
         recognized_mat_number = None
         if image_b64:
             try:
+                # Check if there are any registered students (images in the directory)
+                if not os.path.exists(captured_faces_dir):
+                    os.makedirs(captured_faces_dir, exist_ok=True)
+                    return render_template('error.html', message="No students registered yet. Please register students first."), 404
+                
+                # Get list of image files in the directory
+                try:
+                    image_files = [f for f in os.listdir(captured_faces_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                    # Filter out temp files
+                    image_files = [f for f in image_files if not f.startswith('temp_')]
+                except Exception as e:
+                    print(f"Error listing directory: {e}")
+                    image_files = []
+                
+                if len(image_files) == 0:
+                    # Also check database to see if students are registered
+                    student_count = Student.query.count()
+                    if student_count == 0:
+                        return render_template('error.html', message="No students registered yet. Please register students first."), 404
+                    else:
+                        return render_template('error.html', message=f"Found {student_count} students in database but no images. Please re-register students."), 404
+                
+                print(f"Found {len(image_files)} registered student images: {image_files[:5]}")  # Log first 5 files
+                
+                # Verify images actually exist and are readable
+                valid_images = []
+                for img_file in image_files:
+                    img_path = os.path.join(captured_faces_dir, img_file)
+                    if os.path.exists(img_path) and os.path.getsize(img_path) > 0:
+                        valid_images.append(img_path)
+                
+                if len(valid_images) == 0:
+                    return render_template('error.html', message="Registered images not found. Please re-register students."), 404
+                
+                print(f"Verified {len(valid_images)} valid image files")
+                
+                # Use absolute paths for DeepFace
+                abs_captured_faces_dir = os.path.abspath(captured_faces_dir)
+                abs_captured_image_path = os.path.abspath(captured_image_path)
+                
                 # Force garbage collection before heavy operation
                 gc.collect()
                 
@@ -189,8 +234,8 @@ def mark_attendance():
                 # detector_backend='opencv' is faster and uses less memory than default
                 # distance_metric='cosine' is lighter than 'euclidean'
                 result = DeepFace.find(
-                    img_path=captured_image_path, 
-                    db_path=captured_faces_dir,
+                    img_path=abs_captured_image_path, 
+                    db_path=abs_captured_faces_dir,
                     enforce_detection=False,  # Don't fail if face detection is uncertain
                     detector_backend='opencv',  # Use OpenCV (lighter than default)
                     model_name='Facenet',  # Facenet is lighter than VGG-Face
@@ -232,6 +277,27 @@ def mark_attendance():
                 print(f"Memory error during face recognition: {e}")
                 gc.collect()
                 return render_template('error.html', message="System is busy. Please try again in a moment."), 503
+            except ValueError as e:
+                # Handle DeepFace-specific errors
+                error_msg = str(e)
+                if "No item found" in error_msg:
+                    print(f"DeepFace error: {error_msg}")
+                    print(f"Directory: {captured_faces_dir}")
+                    print(f"Absolute directory: {os.path.abspath(captured_faces_dir)}")
+                    print(f"Directory exists: {os.path.exists(captured_faces_dir)}")
+                    if os.path.exists(captured_faces_dir):
+                        try:
+                            files = os.listdir(captured_faces_dir)
+                            print(f"Files in directory: {files}")
+                        except:
+                            pass
+                    return render_template('error.html', message="No registered students found. Please register students first."), 404
+                else:
+                    print(f"Face recognition error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    gc.collect()
+                    return render_template('error.html', message="Face recognition failed. Please try again."), 500
             except Exception as e:
                 print(f"Face recognition error: {e}")
                 import traceback
